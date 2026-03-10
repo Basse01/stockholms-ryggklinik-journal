@@ -1,74 +1,86 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { logAzureUsage } from "@/lib/usage";
+
+const AZURE_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT!;
+const AZURE_API_KEY = process.env.AZURE_OPENAI_API_KEY!;
+const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT!;
+const AZURE_API_VERSION = "2024-08-01-preview";
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY saknas i .env.local" },
-        { status: 500 }
-      );
-    }
-
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
     const { text } = await request.json();
+    if (!text) return NextResponse.json({ error: "Ingen text att formatera" }, { status: 400 });
 
-    if (!text) {
-      return NextResponse.json(
-        { error: "Ingen text att formatera" },
-        { status: 400 }
-      );
-    }
+    const url = `${AZURE_ENDPOINT}/openai/deployments/${AZURE_DEPLOYMENT}/chat/completions?api-version=${AZURE_API_VERSION}`;
 
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      messages: [
-        {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": AZURE_API_KEY,
+      },
+      body: JSON.stringify({
+        messages: [{
           role: "user",
-          content: `Du är en journalformaterare för svensk sjukvård. Din uppgift är att DIREKT formatera anteckningar till journaltext - fråga ALDRIG efter mer information.
+          content: `Du är en journalformaterare för Stockholms Ryggklinik. Din uppgift är att DIREKT formatera talade anteckningar till journaltext enligt klinikens mall — fråga ALDRIG efter mer information.
 
 VIKTIGT:
 - Formatera ALLTID texten direkt med den information som finns
 - Fråga ALDRIG efter mer detaljer eller förtydliganden
-- Om information saknas för en sektion, skriv "Ej angivet" eller utelämna sektionen
-- Om texten är helt irrelevant för journalföring (t.ex. "hej", slumpmässiga ord, eller icke-medicinskt innehåll), svara ENDAST med: "Detta verktyg är avsett för medicinsk journalföring. Var god ange patientrelaterad information."
+- Om information saknas för ett fält, lämna det TOMT (skriv ingenting efter etiketten) — behandlaren fyller i efterhand
+- Om texten är helt irrelevant för journalföring, svara ENDAST med: "Detta verktyg är avsett för medicinsk journalföring. Var god ange patientrelaterad information."
 
-MALL FÖR JOURNALTEXT:
+MALL (använd exakt denna struktur):
 
-ANAMNES:
-[Patientens beskrivning - smärta, besvär, duration, utlösande faktorer]
+ANAMNES
+Huvudsaklig sökorsak:
+Förlopp:
+Sekundära sökorsaker:
+Socialt:
+Livsstil:
+Övrigt:
 
-UNDERSÖKNING:
-[Inspektion, palpation, rörelseprov, funktionsbedömning]
+DAGSANTECKNING
+Anamnes/notering:
 
-NAPRAPATISK BEDÖMNING:
-[Klinisk bedömning av muskuloskeletal dysfunktion]
+STATUS
+Inspektion:
+Rörelseomfång:
+Fynd:
+Ortopediska tester:
+Neurologisk undersökning:
+Diagnos:
 
-BEHANDLING:
-[Manuell behandling utförd, teknik]
-
-RÅD & UPPFÖLJNING:
-[Egenvård, träning, receptfria läkemedel, återbesök, ev. remiss]
+ÅTGÄRD
+Ledjustering/manipulation ryggrad:
+Ledjustering/manipulation extremitet:
+Mobilisering:
+Information till patient:
+Vårdplan:
+Notering:
 
 Anteckningar att formatera:
 ${text}`,
-        },
-      ],
+        }],
+        max_tokens: 1024,
+      }),
     });
 
-    const formattedText =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`${response.status} ${err}`);
+    }
+
+    const data = await response.json();
+    const formattedText = data.choices[0].message.content;
+
+    const inputTokens = data.usage?.prompt_tokens || 0;
+    const outputTokens = data.usage?.completion_tokens || 0;
+    logAzureUsage(inputTokens, outputTokens);
 
     return NextResponse.json({ formattedText });
   } catch (error: any) {
     console.error("Formatting error:", error);
-    return NextResponse.json(
-      { error: "Formatering misslyckades: " + error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Formatering misslyckades: " + error.message }, { status: 500 });
   }
 }
