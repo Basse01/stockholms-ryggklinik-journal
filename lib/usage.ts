@@ -1,5 +1,6 @@
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
 const CLINIC_ID = process.env.CLINIC_ID!;
 
 // Deepgram pricing: $0.0043 per minute (Nova-2)
@@ -25,8 +26,8 @@ async function insertLog(service: string, inputUnits: number, outputUnits: numbe
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
         "Prefer": "return=minimal",
       },
       body: JSON.stringify({
