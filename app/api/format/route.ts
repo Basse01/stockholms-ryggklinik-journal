@@ -76,7 +76,7 @@ ${text}`,
 
     const inputTokens = data.usage?.prompt_tokens || 0;
     const outputTokens = data.usage?.completion_tokens || 0;
-    logAzureUsage(inputTokens, outputTokens);
+    await logAzureUsage(inputTokens, outputTokens);
 
     return NextResponse.json({ formattedText });
   } catch (error: any) {
