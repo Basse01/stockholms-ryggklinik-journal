@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { buildKeywordsParam } from "@/config/keywords";
+
+function filterAbbreviations(text: string): string {
+  return text.replace(/\b(MET|CTM|ULTT|PIR|SLR|FABER|FADIR)\b/g, "").replace(/\s+/g, " ").trim();
+}
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
@@ -30,7 +33,7 @@ export default function Home() {
       if (!tokenRes.ok) throw new Error(tokenData.error || "Kunde inte hämta token");
 
       const ws = new WebSocket(
-        `wss://api.eu.deepgram.com/v1/listen?language=sv&model=nova-2&smart_format=true&interim_results=true&endpointing=300&${buildKeywordsParam()}`,
+        `wss://api.eu.deepgram.com/v1/listen?language=sv&model=nova-2&interim_results=true&endpointing=300`,
         ["token", tokenData.token]
       );
       wsRef.current = ws;
@@ -58,11 +61,11 @@ export default function Home() {
         if (!transcript) return;
 
         if (data.is_final) {
-          finalTranscriptRef.current += (finalTranscriptRef.current ? " " : "") + transcript;
+          finalTranscriptRef.current += (finalTranscriptRef.current ? " " : "") + filterAbbreviations(transcript);
           setTranscription(finalTranscriptRef.current);
           setInterimText("");
         } else {
-          setInterimText(transcript);
+          setInterimText(filterAbbreviations(transcript));
         }
       };
 
@@ -120,7 +123,6 @@ export default function Home() {
       <header className="bg-[#4a4a4a] border-b border-white/10">
         <div className="max-w-[1200px] mx-auto px-6 py-8">
           <div className="text-center">
-            <p className="text-white/50 text-sm tracking-wide uppercase mb-3">Demo för</p>
             <div className="text-white text-center">
               <p className="text-xs tracking-[0.2em] uppercase text-white/70 mb-1">STOCKHOLMS</p>
               <h1 className="text-2xl font-light tracking-wide uppercase">RYGGKLINIK</h1>
